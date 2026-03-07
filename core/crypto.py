@@ -1,6 +1,6 @@
 """
 crypto.py - AES-256-GCM Encryption + RSA-2048 Key Exchange
-Provides end-to-end encryption for SecureChat-E2E.
+Provides end-to-end encryption for GhostPixel.
 
 Algorithms:
     - AES-256-GCM: Authenticated encryption for message content
@@ -10,10 +10,10 @@ Algorithms:
 
 import os
 import base64
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # type: ignore
+from cryptography.hazmat.primitives.asymmetric import rsa, padding #type: ignore
+from cryptography.hazmat.primitives import hashes, serialization #type: ignore
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC #type: ignore
 
 
 class AESCipher:
