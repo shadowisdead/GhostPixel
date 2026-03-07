@@ -1,5 +1,5 @@
 """
-network.py - TCP Server and Client for SecureChat-E2E
+network.py - TCP Server and Client for GhostPixel
 Handles socket communication, multi-threading, and DoS rate limiting.
 
 Architecture:
@@ -74,7 +74,7 @@ class NetworkFrame:
                 return None, None
             length = struct.unpack(">I", raw_len)[0]
 
-            if length > 10 * 1024 * 1024:  # 10MB max frame size (DoS protection)
+            if length > 10 * 1024 * 1024:  # 10MB max frame size (DoS protection
                 return None, None
 
             data = NetworkFrame._recv_exact(sock, length)
@@ -231,6 +231,9 @@ class ChatServer:
             msg_data = json.loads(payload.decode("utf-8"))
             recipient = msg_data.get("recipient")
 
+            # Inject the real sender identity into the payload before forwarding
+            msg_data["sender"] = sender
+
             self._emit("MESSAGE_ROUTED", {
                 "sender": sender,
                 "recipient": recipient,
@@ -240,7 +243,10 @@ class ChatServer:
             recipient_sock = self._clients.get(recipient)
             if recipient_sock:
                 try:
-                    recipient_sock.sendall(NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, payload))
+                    forward_payload = json.dumps(msg_data).encode("utf-8")
+                    recipient_sock.sendall(
+                        NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, forward_payload)
+                    )
                 except Exception:
                     self._emit("DELIVERY_FAILED", {"recipient": recipient})
             else:
@@ -378,11 +384,13 @@ class ChatClient:
                     break
 
                 if frame_type == NetworkFrame.TYPE_MESSAGE:
-                    msg_data = json.loads(payload.decode("utf-8"))
-                    sender_data = msg_data.get("data", "")
+                    # Pass the raw JSON payload string to the callback so it can
+                    # perform the correct nested parsing of the inner message.
+                    raw_str = payload.decode("utf-8")
+                    msg_data = json.loads(raw_str)
                     sender = msg_data.get("sender", "unknown")
                     if self.on_message:
-                        self.on_message(sender, sender_data, msg_data)
+                        self.on_message(sender, raw_str, msg_data)
 
                 elif frame_type == NetworkFrame.TYPE_USER_LIST:
                     user_data = json.loads(payload.decode("utf-8"))
