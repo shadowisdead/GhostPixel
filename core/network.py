@@ -59,6 +59,44 @@ class NetworkFrame:
         return frame_type, payload
 
     @staticmethod
+    def pack_chat_message(sender: str, recipient: str,
+                          msg_id: str, image_bytes: bytes) -> bytes:
+        """
+        Pack a chat message as binary — no JSON, no base64.
+        Format: [4B sender_len][sender][4B recip_len][recipient]
+                [4B msgid_len][msg_id][raw PNG bytes]
+        """
+
+        def pack_field(s: str) -> bytes:
+            b = s.encode("utf-8")
+            return struct.pack(">I", len(b)) + b
+
+        return (
+            pack_field(sender) +
+            pack_field(recipient) +
+            pack_field(msg_id) +
+            image_bytes
+        )
+
+    @staticmethod
+    def unpack_chat_message(data: bytes) -> tuple:
+        """
+        Unpack binary chat message back to components.
+        Returns: (sender, recipient, msg_id, image_bytes)
+        """
+        offset = 0
+
+        def read_field(d: bytes, o: int) -> tuple[str, int]:
+            length = struct.unpack(">I", d[o:o + 4])[0]
+            return d[o + 4:o + 4 + length].decode("utf-8"), o + 4 + length
+
+        sender, offset = read_field(data, offset)
+        recipient, offset = read_field(data, offset)
+        msg_id, offset = read_field(data, offset)
+        image_bytes = data[offset:]
+        return sender, recipient, msg_id, image_bytes
+
+    @staticmethod
     def recv_frame(sock: socket.socket) -> tuple:
         """
         Receive a complete frame from a socket (handles partial reads). O(n)
@@ -228,11 +266,15 @@ class ChatServer:
                 self._emit("RATE_LIMITED", {"username": sender})
                 return
 
-            msg_data = json.loads(payload.decode("utf-8"))
-            recipient = msg_data.get("recipient")
+            sender_name, recipient, msg_id, img_bytes = NetworkFrame.unpack_chat_message(payload)
 
             # Inject the real sender identity into the payload before forwarding
-            msg_data["sender"] = sender
+            binary_frame = NetworkFrame.pack_chat_message(
+                sender,
+                recipient,
+                msg_id,
+                img_bytes
+            )
 
             self._emit("MESSAGE_ROUTED", {
                 "sender": sender,
@@ -243,9 +285,8 @@ class ChatServer:
             recipient_sock = self._clients.get(recipient)
             if recipient_sock:
                 try:
-                    forward_payload = json.dumps(msg_data).encode("utf-8")
                     recipient_sock.sendall(
-                        NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, forward_payload)
+                        NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, binary_frame)
                     )
                 except Exception:
                     self._emit("DELIVERY_FAILED", {"recipient": recipient})
@@ -353,23 +394,19 @@ class ChatClient:
 
     def send_message(self, recipient: str, payload_bytes: bytes) -> bool:
         """
-        Send a stego image message to a recipient. O(1) enqueue
+        Send a stego image message to a recipient.
         Args:
             recipient (str): Target username
-            payload_bytes (bytes): Complete message packet bytes
+            payload_bytes (bytes): Complete binary message packet bytes,
+                                   already packed by NetworkFrame.pack_chat_message.
         Returns:
             bool: True if queued successfully
         """
         if not self._running or not self._sock:
             return False
 
-        msg_data = json.dumps({
-            "recipient": recipient,
-            "data": payload_bytes.decode("utf-8") if isinstance(payload_bytes, bytes) else payload_bytes
-        }).encode("utf-8")
-
         try:
-            self._sock.sendall(NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, msg_data))
+            self._sock.sendall(NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, payload_bytes))
             return True
         except Exception:
             return False
@@ -384,13 +421,9 @@ class ChatClient:
                     break
 
                 if frame_type == NetworkFrame.TYPE_MESSAGE:
-                    # Pass the raw JSON payload string to the callback so it can
-                    # perform the correct nested parsing of the inner message.
-                    raw_str = payload.decode("utf-8")
-                    msg_data = json.loads(raw_str)
-                    sender = msg_data.get("sender", "unknown")
                     if self.on_message:
-                        self.on_message(sender, raw_str, msg_data)
+                        # Pass the raw binary payload to the callback for unpacking.
+                        self.on_message("unknown", payload)
 
                 elif frame_type == NetworkFrame.TYPE_USER_LIST:
                     user_data = json.loads(payload.decode("utf-8"))
