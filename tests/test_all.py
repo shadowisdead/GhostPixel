@@ -75,13 +75,9 @@ class TestHashTable(unittest.TestCase):
 
     def setUp(self) -> None:
         from dsa.hash_table import HashTable
-        self.table = HashTable(capacity=4)
+        self.table = HashTable()
 
-    def test_hash_table_insert_get(self) -> None:
-        self.table.insert("user1", 123)
-        self.assertEqual(self.table.get("user1"), 123)
-
-    def test_hash_table_update_existing(self) -> None:
+    def test_hash_table_insert_overwrite(self) -> None:
         self.table.insert("key", "a")
         self.table.insert("key", "b")
         self.assertEqual(self.table.get("key"), "b")

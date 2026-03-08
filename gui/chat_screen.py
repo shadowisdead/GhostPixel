@@ -514,15 +514,18 @@ class ChatScreen(tk.Frame):
                 self.stego.carrier_path = carrier
                 stego_bytes = self.stego.embed(final_bytes)
 
-                # 5. Send over TCP
-                stego_b64 = base64.b64encode(stego_bytes).decode("utf-8")
-                msg_data = json.dumps({
-                    "type": "chat",
-                    "sender": self.username,
-                    "msg_id": msg_id,
-                    "stego_b64": stego_b64
-                })
-                self.client.send_message(self.selected_user, msg_data.encode("utf-8"))
+                # 5. Send over TCP as raw binary frame (no JSON, no base64)
+                from core.network import NetworkFrame
+                binary_frame = NetworkFrame.pack_chat_message(
+                    self.username,
+                    self.selected_user,
+                    msg_id,
+                    stego_bytes  # raw PNG bytes, no base64
+                )
+                if self.client and self.client._sock:
+                    self.client._sock.sendall(
+                        NetworkFrame.pack(NetworkFrame.TYPE_MESSAGE, binary_frame)
+                    )
 
                 # 6. Save to DB (encrypted at-rest)
                 self.storage.save_message(
@@ -533,7 +536,7 @@ class ChatScreen(tk.Frame):
                     nonce=enc_result["nonce"],
                     signature=signature,
                     timestamp=packet.timestamp,
-                    stego_image_b64=stego_b64[:200]
+                    stego_image_b64=base64.b64encode(stego_bytes).decode("utf-8")[:200]
                 )
 
                 # 7. Add to linked list
@@ -557,24 +560,17 @@ class ChatScreen(tk.Frame):
 
         threading.Thread(target=_do_send, daemon=True).start()
 
-    def _on_message_received(self, sender: str, payload_str: str, raw_data: dict):
+    def _on_message_received(self, sender: str, payload: bytes):
         """Handle incoming message from network."""
         def _process():
             try:
-                msg_data = json.loads(payload_str) if isinstance(payload_str, str) else raw_data
-                if isinstance(msg_data, dict) and "data" in msg_data:
-                    inner = json.loads(msg_data["data"]) if isinstance(msg_data["data"], str) else msg_data["data"]
-                else:
-                    inner = msg_data
+                # payload is now raw binary, not JSON
+                from core.network import NetworkFrame
+                sender_name, recipient, msg_id, image_bytes = \
+                    NetworkFrame.unpack_chat_message(payload)
 
-                stego_b64 = inner.get("stego_b64", "")
-                actual_sender = inner.get("sender", sender)
-                msg_id = inner.get("msg_id", secrets.token_hex(8))
-
-                if not stego_b64:
-                    return
-
-                stego_bytes = base64.b64decode(stego_b64)
+                actual_sender = sender_name
+                stego_bytes = image_bytes
 
                 # Extract from stego image
                 from core.tamper import MessagePacket

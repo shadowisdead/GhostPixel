@@ -1,0 +1,15 @@
+[2026-03-07 23:27:46] [INFO] [SERVER_STARTED] user=N/A | {'host': '127.0.0.1', 'port': 9999}
+[2026-03-07 23:27:46] [INFO] [CLIENT_CONNECTED] user=N/A | {'username': 'shadow', 'addr': "('127.0.0.1', 52444)"}
+[2026-03-07 23:27:46] [INFO] [USER_CONNECTED] user=shadow | shadow connected to server
+[2026-03-07 23:32:59] [INFO] [USER_LOGOUT] user=shadow | shadow logged out
+[2026-03-07 23:32:59] [INFO] [CLIENT_DISCONNECTED] user=N/A | {'username': 'shadow'}
+[2026-03-07 23:33:27] [INFO] [SERVER_STARTED] user=N/A | {'host': '127.0.0.1', 'port': 9999}
+[2026-03-07 23:33:27] [INFO] [USER_CONNECTED] user=light | light connected to server
+[2026-03-07 23:33:27] [INFO] [CLIENT_CONNECTED] user=N/A | {'username': 'light', 'addr': "('127.0.0.1', 56171)"}
+[2026-03-07 23:33:35] [INFO] [MESSAGE_ROUTED] user=N/A | {'sender': 'light', 'recipient': 'shadow', 'size': 972529}
+[2026-03-07 23:33:35] [INFO] [RECIPIENT_OFFLINE] user=N/A | {'recipient': 'shadow'}
+[2026-03-08 00:55:56] [INFO] [EVT] user=N/A | d
+[2026-03-08 00:56:58] [INFO] [EVT] user=N/A | d
+[2026-03-08 00:56:58] [INFO] [TEST_EVENT] user=alice | desc
+[2026-03-08 00:57:28] [INFO] [EVT] user=N/A | d
+[2026-03-08 00:57:28] [INFO] [TEST_EVENT] user=alice | desc
